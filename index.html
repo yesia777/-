@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ASL Camera – Live Recognition</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+  <style>
+    body { background:#111; color:white; font-family:sans-serif; padding:20px; }
+    #webcam-container video { width:100%; border-radius:16px; }
+  </style>
+</head>
+<body>
+<h2>ASL Recognition – Live Camera</h2>
+<p>Camera + TensorFlow.js + Teachable Machine</p>
+
+<button onclick="init()">Start</button>
+<button onclick="clearWord()">Clear</button>
+
+<h3 id="status">Status: waiting…</h3>
+<h3 id="confidence"></h3>
+
+<h2>Word:</h2>
+<div id="word" style="font-size:28px; font-weight:bold;">—</div>
+
+<h3>Letters stream:</h3>
+<div id="stream"></div>
+
+<div id="webcam-container"></div>
+
+<script>
+  const MODEL_BASE_URL = "https://teachablemachine.withgoogle.com/models/XXXXXXX/";
+
+  let model;
+  let webcam;
+  let maxPredictions = 0;
+
+  let word = "";
+  let history = [];
+  let lastLetter = "";
+  let lastTime = 0;
+
+  async function loadModel(){
+    const modelURL = MODEL_BASE_URL + "model.json";
+    const metadataURL = MODEL_BASE_URL + "metadata.json";
+    model = await tmImage.load(modelURL, metadataURL);
+    maxPredictions = model.getTotalClasses();
+  }
+
+  async function setupWebcam(){
+    webcam = new tmImage.Webcam(200,200,true);
+    await webcam.setup({ facingMode:"user" });
+    await webcam.play();
+    window.requestAnimationFrame(loop);
+    document.getElementById("webcam-container").innerHTML = "";
+    document.getElementById("webcam-container").appendChild(webcam.canvas);
+  }
+
+  async function init() {
+    document.getElementById("status").innerText = "Loading model…";
+    await loadModel();
+    document.getElementById("status").innerText = "Starting camera…";
+    await setupWebcam();
+    document.getElementById("status").innerText = "Ready";
+  }
+
+  function clearWord(){
+    word = "";
+    history = [];
+    document.getElementById("word").innerText = "—";
+    document.getElementById("stream").innerText = "";
+  }
+
+  async function loop(){
+    webcam.update();
+    await predict();
+    window.requestAnimationFrame(loop);
+  }
+
+  async function predict(){
+    const predictions = await model.predict(webcam.canvas);
+    let best = "";
+    let prob = 0;
+
+    predictions.forEach(p=>{
+      if(p.probability > prob){
+        best = p.className;
+        prob = p.probability;
+      }
+    });
+
+    document.getElementById("status").innerText = "Prediction: " + best;
+    document.getElementById("confidence").innerText = Math.round(prob*100) + "%";
+
+    const now = Date.now();
+    if(prob > 0.8 && (best !== lastLetter || now-lastTime>800)){
+      word += best;
+      history.push(best);
+      document.getElementById("word").innerText = word;
+      document.getElementById("stream").innerText = history.join(" ");
+      lastLetter = best;
+      lastTime = now;
+    }
+  }
+</script>
+
+</body>
+</html>
