@@ -80,10 +80,78 @@
     window.requestAnimationFrame(loop);
   }
 
-  async function predict(){
-    const predictions = await model.predict(webcam.canvas);
-    let best = "";
-    let prob = 0;
+  async function predict() {
+  const predictions = await model.predict(webcam.canvas);
+
+  // если вообще нет предсказаний
+  if (!predictions || !predictions.length) {
+    document.getElementById("status").innerText = "Нет данных от модели";
+    document.getElementById("confidence").innerText = "";
+    return;
+  }
+
+  let bestClass = null;
+  let bestProb = 0;
+
+  // выбираем класс с максимальной вероятностью
+  predictions.forEach(p => {
+    if (p.probability > bestProb) {
+      bestProb = p.probability;
+      bestClass = p.className;
+    }
+  });
+
+  const percent = Math.round(bestProb * 100);
+  const now = Date.now();
+
+  // ЕСЛИ:
+  //  - модель вернула undefined / пустую строку
+  //  - или это фон (NONE / Background)
+  //  - или уверенность слабая (< 90%)
+  // → считаем, что жеста НЕТ и ничего не добавляем
+  if (
+    !bestClass ||
+    bestClass === "" ||
+    bestClass === "" ||
+    bestClass === "" ||
+    bestProb < 0.9
+  ) {
+    document.getElementById("status").innerText = "Нет жеста";
+    document.getElementById("confidence").innerText = percent ? percent + "%" : "";
+    return;
+  }
+
+  // сюда попадаем только если это НОРМАЛЬНАЯ буква
+  document.getElementById("status").innerText = "Prediction: " + bestClass;
+  document.getElementById("confidence").innerText = percent + "%";
+
+  // добавляем букву не чаще, чем раз в секунду
+  if (bestClass !== lastLetter || now - lastTime > 1000) {
+    word += bestClass;
+    history.push(bestClass);
+    document.getElementById("word").innerText = word;
+    document.getElementById("stream").innerText = history.join(" ");
+    lastLetter = bestClass;
+    lastTime = now;
+  }
+}
+
+
+  // для букв
+  document.getElementById("status").innerText = "Prediction: " + best;
+  document.getElementById("confidence").innerText = percent + "%";
+
+  // добавляем букву ТОЛЬКО если уверенность большая
+  if (prob > 0.95 && (best !== lastLetter || now - lastTime > 1000)) {
+    word += best;
+    history.push(best);
+    document.getElementById("word").innerText = word;
+    document.getElementById("stream").innerText = history.join(" ");
+    lastLetter = best;
+    lastTime = now;
+  }
+
+
 
     predictions.forEach(p=>{
       if(p.probability > prob){
@@ -96,7 +164,14 @@
     document.getElementById("confidence").innerText = Math.round(prob*100) + "%";
 
     const now = Date.now();
-    if(prob > 0.8 && (best !== lastLetter || now-lastTime>800)){
+
+    // 1) игнорируем фон
+    if (best === "" || best === "Background") {
+      return;
+    }
+
+    // 2) добавляем букву только если уверенность очень высокая
+    if (prob > 0.95 && (best !== lastLetter || now - lastTime > 1000)) {
       word += best;
       history.push(best);
       document.getElementById("word").innerText = word;
@@ -104,7 +179,8 @@
       lastLetter = best;
       lastTime = now;
     }
-  }
+
+  
 </script>
 
 </body>
