@@ -2,36 +2,233 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>ASL Camera – Live Recognition</title>
+  <title>ASL Recognition – Live Camera</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+  <!-- TensorFlow.js + Teachable Machine -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
   <style>
-    body { background:#111; color:white; font-family:sans-serif; padding:20px; }
-    #webcam-container video { width:100%; border-radius:16px; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #4f46e5, #020617);
+      color: #f9fafb;
+      padding: 16px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 430px;
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 24px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      backdrop-filter: blur(14px);
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      text-align: center;
+      color: #9ca3af;
+      margin-bottom: 8px;
+    }
+
+    .video-wrapper {
+      margin-top: 10px;
+      border-radius: 18px;
+      padding: 4px;
+      border: 2px solid rgba(148, 163, 184, 0.7);
+      box-shadow: 0 0 0 rgba(0,0,0,0);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      background: #020617;
+    }
+
+    .video-wrapper.detected {
+      border-color: #22c55e;
+      box-shadow: 0 0 18px rgba(34, 197, 94, 0.7);
+    }
+
+    #webcam-container canvas,
+    #webcam-container video {
+      width: 100% !important;
+      height: auto !important;
+      border-radius: 14px;
+      display: block;
+    }
+
+    .overlay-label {
+      position: absolute;
+      inset: 10%;
+      border-radius: 14px;
+      border: 1px dashed rgba(248, 250, 252, 0.8);
+      pointer-events: none;
+    }
+
+    .overlay-text {
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      transform: translateX(-50%);
+      font-size: 0.8rem;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+      color: #e5e7eb;
+      pointer-events: none;
+    }
+
+    .buttons {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      flex: 1;
+      border-radius: 999px;
+      border: none;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.1s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      color: #f9fafb;
+      box-shadow: 0 10px 25px rgba(79, 70, 229, 0.5);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: #e5e7eb;
+      border: 1px solid rgba(148, 163, 184, 0.9);
+    }
+
+    .btn:active {
+      transform: translateY(1px) scale(0.99);
+      box-shadow: none;
+      opacity: 0.9;
+    }
+
+    .status-row {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      gap: 8px;
+    }
+
+    .status-main {
+      font-weight: 600;
+    }
+
+    .word-box {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .word-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+
+    .word-value {
+      min-height: 26px;
+      font-size: 1.2rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      word-wrap: break-word;
+    }
+
+    .letters-stream {
+      margin-top: 8px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      border: 1px dashed rgba(148, 163, 184, 0.6);
+      background: rgba(15, 23, 42, 0.9);
+      font-size: 0.78rem;
+      white-space: nowrap;
+      overflow-x: auto;
+    }
+
+    .letters-stream span {
+      margin-right: 4px;
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 0.7rem;
+      color: #9ca3af;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
-<h2>ASL Recognition – Live Camera</h2>
-<p>Camera + TensorFlow.js + Teachable Machine</p>
+<div class="card">
+  <h1>ASL Recognition – Live Camera</h1>
+  <div class="subtitle">Камера + TensorFlow.js + Teachable Machine</div>
 
-<button onclick="init()">Start</button>
-<button onclick="clearWord()">Clear</button>
+  <div id="videoWrapper" class="video-wrapper">
+    <div id="webcam-container"></div>
+    <div class="overlay-label"></div>
+    <div class="overlay-text">Покажите жест в эту область</div>
+  </div>
 
-<h3 id="status">Status: waiting…</h3>
-<h3 id="confidence"></h3>
+  <div class="buttons">
+    <button class="btn btn-primary" id="btnStart">Start</button>
+    <button class="btn btn-outline" id="btnClear">Clear</button>
+  </div>
 
-<h2>Word:</h2>
-<div id="word" style="font-size:28px; font-weight:bold;">—</div>
+  <div class="status-row">
+    <div class="status-main" id="status">Готово. Нажмите Start.</div>
+    <div id="confidence"></div>
+  </div>
 
-<h3>Letters stream:</h3>
-<div id="stream"></div>
+  <div class="word-box">
+    <div class="word-label">Слово</div>
+    <div class="word-value" id="word">—</div>
+  </div>
 
-<div id="webcam-container"></div>
+  <div class="letters-stream" id="stream">
+    <span>Распознанные буквы появятся здесь…</span>
+  </div>
+
+  <div class="hint">
+    • Нажмите <b>Start</b>, разрешите доступ к камере.<br>
+    • Держите руку с жестом в рамке.<br>
+    • Когда модель уверена, рамка подсвечивается зелёным, буква добавляется в слово.
+  </div>
+</div>
 
 <script>
+  // 🔴 СЮДА ВСТАВЬ СВОЮ ССЫЛКУ НА МОДЕЛЬ ИЗ TEACHABLE MACHINE
+  // например: "https://teachablemachine.withgoogle.com/models/AbCdEfGhIj/"
   const MODEL_BASE_URL = "https://teachablemachine.withgoogle.com/models/YtrcEuG3y/";
 
   let model;
@@ -42,6 +239,13 @@
   let history = [];
   let lastLetter = "";
   let lastTime = 0;
+  let dotsStep = 0;
+
+  const statusEl = document.getElementById("status");
+  const confEl = document.getElementById("confidence");
+  const wordEl = document.getElementById("word");
+  const streamEl = document.getElementById("stream");
+  const videoWrapper = document.getElementById("videoWrapper");
 
   async function loadModel(){
     const modelURL = MODEL_BASE_URL + "model.json";
@@ -51,137 +255,119 @@
   }
 
   async function setupWebcam(){
-    webcam = new tmImage.Webcam(200,200,true);
-    await webcam.setup({ facingMode:"user" });
+    if (webcam) {
+      await webcam.stop();
+    }
+    webcam = new tmImage.Webcam(200, 200, true);
+    await webcam.setup({ facingMode: "user" });
     await webcam.play();
     window.requestAnimationFrame(loop);
-    document.getElementById("webcam-container").innerHTML = "";
-    document.getElementById("webcam-container").appendChild(webcam.canvas);
+    const container = document.getElementById("webcam-container");
+    container.innerHTML = "";
+    container.appendChild(webcam.canvas);
   }
 
   async function init() {
-    document.getElementById("status").innerText = "Loading model…";
-    await loadModel();
-    document.getElementById("status").innerText = "Starting camera…";
-    await setupWebcam();
-    document.getElementById("status").innerText = "Ready";
-  }
-
-  function clearWord(){
-    word = "";
-    history = [];
-    document.getElementById("word").innerText = "—";
-    document.getElementById("stream").innerText = "";
+    try {
+      statusEl.innerText = "Загружаю модель…";
+      confEl.innerText = "";
+      await loadModel();
+      statusEl.innerText = "Включаю камеру…";
+      await setupWebcam();
+      statusEl.innerText = "Камера работает. Покажите жест.";
+    } catch (e) {
+      console.error(e);
+      statusEl.innerText = "Ошибка загрузки модели или камеры";
+    }
   }
 
   async function loop(){
+    if (!webcam) return;
     webcam.update();
     await predict();
     window.requestAnimationFrame(loop);
   }
 
   async function predict() {
-  const predictions = await model.predict(webcam.canvas);
+    const predictions = await model.predict(webcam.canvas);
 
-  // если вообще нет предсказаний
-  if (!predictions || !predictions.length) {
-    document.getElementById("status").innerText = "Нет данных от модели";
-    document.getElementById("confidence").innerText = "";
-    return;
-  }
-
-  let bestClass = null;
-  let bestProb = 0;
-
-  // выбираем класс с максимальной вероятностью
-  predictions.forEach(p => {
-    if (p.probability > bestProb) {
-      bestProb = p.probability;
-      bestClass = p.className;
-    }
-  });
-
-  const percent = Math.round(bestProb * 100);
-  const now = Date.now();
-
-  // ЕСЛИ:
-  //  - модель вернула undefined / пустую строку
-  //  - или это фон (NONE / Background)
-  //  - или уверенность слабая (< 90%)
-  // → считаем, что жеста НЕТ и ничего не добавляем
-  if (
-    !bestClass ||
-    bestClass === "" ||
-    bestClass === "" ||
-    bestClass === "" ||
-    bestProb < 0.9
-  ) {
-    document.getElementById("status").innerText = "Нет жеста";
-    document.getElementById("confidence").innerText = percent ? percent + "%" : "";
-    return;
-  }
-
-  // сюда попадаем только если это НОРМАЛЬНАЯ буква
-  document.getElementById("status").innerText = "Prediction: " + bestClass;
-  document.getElementById("confidence").innerText = percent + "%";
-
-  // добавляем букву не чаще, чем раз в секунду
-  if (bestClass !== lastLetter || now - lastTime > 1000) {
-    word += bestClass;
-    history.push(bestClass);
-    document.getElementById("word").innerText = word;
-    document.getElementById("stream").innerText = history.join(" ");
-    lastLetter = bestClass;
-    lastTime = now;
-  }
-}
-
-
-  // для букв
-  document.getElementById("status").innerText = "Prediction: " + best;
-  document.getElementById("confidence").innerText = percent + "%";
-
-  // добавляем букву ТОЛЬКО если уверенность большая
-  if (prob > 0.95 && (best !== lastLetter || now - lastTime > 1000)) {
-    word += best;
-    history.push(best);
-    document.getElementById("word").innerText = word;
-    document.getElementById("stream").innerText = history.join(" ");
-    lastLetter = best;
-    lastTime = now;
-  }
-
-
-
-    predictions.forEach(p=>{
-      if(p.probability > prob){
-        best = p.className;
-        prob = p.probability;
-      }
-    });
-
-    document.getElementById("status").innerText = "Prediction: " + best;
-    document.getElementById("confidence").innerText = Math.round(prob*100) + "%";
-
-    const now = Date.now();
-
-    // 1) игнорируем фон
-    if (best === "" || best === "Background") {
+    if (!predictions || !predictions.length) {
+      showIdle();
       return;
     }
 
-    // 2) добавляем букву только если уверенность очень высокая
-    if (prob > 0.95 && (best !== lastLetter || now - lastTime > 1000)) {
-      word += best;
-      history.push(best);
-      document.getElementById("word").innerText = word;
-      document.getElementById("stream").innerText = history.join(" ");
-      lastLetter = best;
-      lastTime = now;
+    let bestClass = null;
+    let bestProb = 0;
+
+    predictions.forEach(p => {
+      if (p.probability > bestProb) {
+        bestProb = p.probability;
+        bestClass = p.className;
+      }
+    });
+
+    const percent = Math.round(bestProb * 100);
+    const now = Date.now();
+
+    // Если модель не уверена или это фон
+    if (
+      !bestClass ||
+      bestClass === "undefined" ||
+      bestClass === "NONE" ||
+      bestClass === "Background" ||
+      bestProb < 0.9
+    ) {
+      showIdle(percent);
+      return;
     }
 
-  
-</script>
+    // Нормальная буква
+    videoWrapper.classList.add("detected");
+    statusEl.innerText = "Prediction: " + bestClass;
+    confEl.innerText = percent + "%";
 
+    if (bestClass !== lastLetter || now - lastTime > 1000) {
+      word += bestClass;
+      history.push(bestClass);
+      wordEl.innerText = word || "—";
+      streamEl.innerText = history.join(" ");
+      lastLetter = bestClass;
+      lastTime = now;
+    }
+  }
+
+  function showIdle(percent) {
+    // рамка обычная
+    videoWrapper.classList.remove("detected");
+
+    // анимированные точки
+    dotsStep = (dotsStep + 1) % 4; // 0..3
+    const dots = ".".repeat(dotsStep === 0 ? 1 : dotsStep);
+    statusEl.innerText = "Покажите жест " + dots;
+    confEl.innerText = percent ? percent + "%" : "";
+  }
+
+  function clearWord() {
+    word = "";
+    history = [];
+    lastLetter = "";
+    lastTime = 0;
+    dotsStep = 0;
+    wordEl.innerText = "—";
+    streamEl.innerHTML = "<span>Распознанные буквы появятся здесь…</span>";
+    statusEl.innerText = "Готово. Нажмите Start.";
+    confEl.innerText = "";
+    videoWrapper.classList.remove("detected");
+  }
+
+  document.getElementById("btnStart").addEventListener("click", () => {
+    clearWord();
+    init();
+  });
+
+  document.getElementById("btnClear").addEventListener("click", () => {
+    clearWord();
+  });
+</script>
 </body>
 </html>
